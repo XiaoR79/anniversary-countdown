@@ -1,1 +1,5 @@
 node_modules/
+.secrets/
+.serverpid
+.verify-*.js
+deploy-github.mjs

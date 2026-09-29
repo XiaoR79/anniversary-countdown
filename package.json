@@ -1,0 +1,14 @@
+{
+  "name": "anniversary-countdown",
+  "version": "1.0.0",
+  "description": "纪念日倒计时：单文件静态页，可自行增删纪念日，数据保存在浏览器本地",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tests/dom.test.js",
+    "serve": "python -m http.server 8123"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.1"
+  }
+}

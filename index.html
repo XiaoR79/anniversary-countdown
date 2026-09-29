@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>纪念日倒计时</title>
+<meta name="description" content="一个好看的纪念日倒计时页面，可自由添加、删除纪念日，数据保存在本机浏览器。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%8F%B3%3C/text%3E%3C/svg%3E">
+<style>
+/* ── 设计令牌 ───────────────────────────────────────────── */
+@property --accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.72 0.17 300);
+}
+
+:root {
+  --bg: oklch(0.145 0.018 275);
+  --fg: oklch(0.975 0.004 275);
+  --muted: oklch(0.72 0.018 275);
+  --faint: oklch(0.56 0.02 275);
+  --border: rgba(255, 255, 255, 0.09);
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --accent: oklch(0.72 0.17 300);
+  --radius: 22px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+  transition: --accent 620ms ease-out;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── 背景光晕 ───────────────────────────────────────────── */
+.orbs {
+  position: fixed;
+  inset: -25vh -12vw;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(44% 38% at 16% 10%, color-mix(in oklab, var(--accent) 46%, transparent), transparent 70%),
+    radial-gradient(36% 34% at 88% 6%, color-mix(in oklab, var(--accent) 24%, transparent), transparent 72%),
+    radial-gradient(64% 46% at 52% 112%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 70%);
+  filter: blur(36px);
+  opacity: 0.8;
+  animation: drift 28s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to   { transform: translate3d(2.5%, 2.5%, 0) scale(1.1); }
+}
+
+/* ── 骨架 ──────────────────────────────────────────────── */
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: clamp(20px, 3.6vw, 44px) clamp(16px, 3vw, 32px) 56px;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: clamp(18px, 3vw, 30px);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.logo .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 14px 2px var(--accent);
+}
+.today {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+
+.grid {
+  display: grid;
+  gap: clamp(16px, 2.4vw, 26px);
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 920px) {
+  .grid { grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr); align-items: start; }
+  .hero { position: sticky; top: 26px; }
+}
+.side { display: flex; flex-direction: column; gap: clamp(16px, 2.4vw, 26px); min-width: 0; }
+
+/* ── 主卡：倒计时 ───────────────────────────────────────── */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: clamp(22px, 3.2vw, 38px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.014));
+  box-shadow:
+    0 30px 70px -34px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(88% 66% at 102% -6%, color-mix(in oklab, var(--accent) 30%, transparent), transparent 62%);
+}
+
+.badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--accent) 52%, white);
+  background: color-mix(in oklab, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in oklab, var(--accent) 32%, transparent);
+}
+
+.hero-name {
+  position: relative;
+  margin: 16px 0 6px;
+  font-size: clamp(25px, 3.4vw, 37px);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+.hero-date {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.units {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(7px, 1.3vw, 13px);
+  margin-top: clamp(20px, 2.8vw, 30px);
+}
+.unit {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(12px, 2vw, 20px) 6px clamp(9px, 1.4vw, 14px);
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.unit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 76% at 50% -18%, color-mix(in oklab, var(--accent) 42%, transparent), transparent 72%);
+  opacity: 0.55;
+}
+.unit .num {
+  position: relative;
+  display: block;
+  font-size: clamp(22px, 5.4vw, 44px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.unit .lbl {
+  position: relative;
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+}
+
+.hero-foot { position: relative; margin-top: clamp(18px, 2.4vw, 26px); }
+.bar-track {
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+}
+.bar {
+  height: 100%;
+  width: 0;
+  border-radius: 99px;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--accent) 40%, transparent), var(--accent));
+  box-shadow: 0 0 18px -2px var(--accent);
+  transition: width 900ms linear;
+}
+.foot-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 11px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.foot-row .pct { font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+
+/* ── 面板与表单 ─────────────────────────────────────────── */
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: clamp(16px, 2.2vw, 22px);
+}
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 15px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.count {
+  min-width: 22px;
+  padding: 2px 7px;
+  text-align: center;
+  border-radius: 99px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+#addForm { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row > .field { flex: 1 1 150px; }
+
+label, .label-plain {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+input[type="text"], input[type="date"] {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 160ms, background 160ms, box-shadow 160ms;
+}
+input[type="text"]::placeholder { color: var(--faint); }
+input[type="text"]:hover, input[type="date"]:hover { background: rgba(255, 255, 255, 0.06); }
+input:focus-visible, .btn:focus-visible, .swatch-input:focus-visible + .swatch, .item:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklab, var(--accent) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--fg);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 160ms, border-color 160ms;
+  user-select: none;
+}
+.check:hover { background: rgba(255, 255, 255, 0.07); }
+.check input {
+  appearance: none;
+  width: 17px; height: 17px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+.check input::after {
+  content: '';
+  width: 9px; height: 9px;
+  border-radius: 2px;
+  transform: scale(0);
+  transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: oklch(0.17 0.02 275);
+}
+.check input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.check input:checked::after { transform: scale(1); }
+
+.swatches { display: flex; gap: 9px; flex-wrap: wrap; }
+.swatch-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.swatch {
+  display: block;
+  width: 27px; height: 27px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--c);
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+  transition: transform 150ms, border-color 150ms, box-shadow 150ms;
+}
+.swatch:hover { transform: scale(1.1); }
+.swatch-input:checked + .swatch {
+  border-color: #fff;
+  transform: scale(1.1);
+  box-shadow: 0 0 16px -2px var(--c);
+}
+
+.err {
+  margin: 0;
+  font-size: 13px;
+  color: oklch(0.75 0.17 25);
+}
+.btn {
+  align-self: flex-start;
+  padding: 11px 22px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: oklch(0.16 0.02 275);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: var(--accent);
+  box-shadow: 0 12px 30px -14px var(--accent);
+  transition: transform 120ms ease-out, filter 180ms, box-shadow 180ms;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: scale(0.975); }
+.btn-ghost {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+  border-color: var(--border);
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.13); filter: none; }
+
+/* ── 纪念日列表 ─────────────────────────────────────────── */
+.list { display: flex; flex-direction: column; gap: 9px; }
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.028);
+  transition: transform 170ms ease-out, background 170ms, border-color 170ms, box-shadow 170ms;
+}
+.item:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.06); }
+.item[aria-current="true"] {
+  border-color: color-mix(in oklab, var(--dot, var(--accent)) 55%, transparent);
+  background: color-mix(in oklab, var(--dot, var(--accent)) 9%, transparent);
+  box-shadow: 0 14px 34px -22px var(--dot, var(--accent));
+}
+.item-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--dot, var(--accent));
+  box-shadow: 0 0 12px 1px var(--dot, var(--accent));
+}
+.item-main { min-width: 0; }
+.item-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-date {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.tag {
+  padding: 1px 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  border-radius: 99px;
+  color: color-mix(in oklab, var(--dot, var(--accent)) 62%, white);
+  background: color-mix(in oklab, var(--dot, var(--accent)) 18%, transparent);
+}
+.item-left {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.item-del {
+  display: grid;
+  place-content: center;
+  width: 28px; height: 28px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--faint);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  opacity: 0.65;
+  transition: color 150ms, background 150ms, opacity 150ms, transform 120ms;
+}
+.item-del:hover {
+  opacity: 1;
+  color: oklch(0.78 0.17 25);
+  background: rgba(255, 80, 80, 0.12);
+}
+.item-del:active { transform: scale(0.9); }
+
+.empty {
+  padding: 26px 18px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--faint);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 15px;
+}
+
+/* ── 页脚与提示条 ───────────────────────────────────────── */
+.foot {
+  margin-top: clamp(22px, 3.4vw, 38px);
+  font-size: 12px;
+  color: var(--faint);
+  text-align: center;
+}
+.foot.warn { color: oklch(0.8 0.14 80); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px 11px 18px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(24, 24, 32, 0.9);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 44px -20px rgba(0, 0, 0, 0.95);
+  transform: translate(-50%, 14px);
+  opacity: 0;
+  transition: opacity 220ms ease-out, transform 260ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.toast[hidden] { display: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast-action {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in oklab, var(--accent) 55%, white);
+  cursor: pointer;
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+}
+.toast-action:hover { background: color-mix(in oklab, var(--accent) 26%, transparent); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.noscript {
+  margin: 0 0 clamp(14px, 2vw, 22px);
+  padding: 12px 16px;
+  font-size: 14px;
+  color: oklch(0.85 0.12 80);
+  border: 1px solid oklch(0.6 0.12 80 / 0.4);
+  border-radius: 14px;
+  background: oklch(0.6 0.12 80 / 0.12);
+}
+
+@media (max-width: 419px) {
+  .item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 4px;
+    grid-template-areas:
+      "dot main del"
+      "dot mini del";
+  }
+  .item-dot { grid-area: dot; }
+  .item-main { grid-area: main; }
+  .item-left { grid-area: mini; }
+  .item-del { grid-area: del; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="orbs" aria-hidden="true"></div>
+<div class="wrap">
+  <noscript><p class="noscript">这个页面靠 JavaScript 倒数并保存数据；请在浏览器里启用 JavaScript 后再打开。</p></noscript>
+  <header class="top">
+    <h1 class="logo"><span class="dot" aria-hidden="true"></span><span>纪念日倒计时</span></h1>
+    <p class="today" id="today"></p>
+  </header>
+
+  <main class="grid">
+    <section class="hero" aria-labelledby="heroName">
+      <p class="badge" id="heroBadge">最近的一个</p>
+      <h2 class="hero-name" id="heroName">加载中…</h2>
+      <p class="hero-date" id="heroDate">—</p>
+
+      <div class="units" id="units" aria-hidden="true">
+        <div class="unit"><span class="num" id="uD">0</span><span class="lbl">天</span></div>
+        <div class="unit"><span class="num" id="uH">00</span><span class="lbl">时</span></div>
+        <div class="unit"><span class="num" id="uM">00</span><span class="lbl">分</span></div>
+        <div class="unit"><span class="num" id="uS">00</span><span class="lbl">秒</span></div>
+      </div>
+      <p class="sr-only" id="heroSr">距离目标还有 0 天</p>
+
+      <div class="hero-foot">
+        <div class="bar-track"><div class="bar" id="dayBar"></div></div>
+        <div class="foot-row">
+          <span id="heroNote">—</span>
+          <span class="pct" id="heroPct">今日 0%</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="panel" aria-labelledby="addTitle">
+        <h2 class="panel-title" id="addTitle">添加纪念日</h2>
+        <form id="addForm" novalidate>
+          <div class="field">
+            <label for="fName">名称</label>
+            <input id="fName" name="name" type="text" maxlength="40" autocomplete="off" placeholder="例如：我们的生日 / 出发那天">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="fDate">日期</label>
+              <input id="fDate" name="date" type="date">
+            </div>
+            <div class="field">
+              <span class="label-plain" id="repLabel">重复</span>
+              <label class="check"><input type="checkbox" id="fRepeat" aria-describedby="repLabel"><span>每年重复</span></label>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label-plain" id="colorLabel">主题色</span>
+            <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colorLabel"></div>
+          </div>
+          <p class="err" id="formErr" role="alert" hidden></p>
+          <button class="btn" type="submit">添加纪念日</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="listTitle">
+        <h2 class="panel-title" id="listTitle"><span>全部纪念日</span><span class="count" id="count">0</span></h2>
+        <div class="list" id="list"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot" id="foot">
+    <span id="storageNote">数据保存在这台设备的浏览器里，关掉网页再打开还在。</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 常量 ─────────────────────────────────────────────── */
+  var STORE_KEY = 'anniversary-countdown.v1';
+  var WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  var COLORS = [
+    { id: 'violet', label: '星紫', value: 'oklch(0.72 0.17 300)' },
+    { id: 'azure',  label: '蔚蓝', value: 'oklch(0.67 0.16 264)' },
+    { id: 'cyan',   label: '天青', value: 'oklch(0.78 0.13 205)' },
+    { id: 'mint',   label: '薄荷', value: 'oklch(0.79 0.15 160)' },
+    { id: 'amber',  label: '琥珀', value: 'oklch(0.81 0.15 78)' },
+    { id: 'rose',   label: '玫瑰', value: 'oklch(0.74 0.17 12)' }
+  ];
+  var DEFAULT_ITEMS = [
+    { name: '2027 年元旦', date: '2027-01-01', color: 'violet', repeat: false }
+  ];
+  var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  /* ── 小工具 ───────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function setText(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function uid() { return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  function parseYMD(text) {
+    if (typeof text !== 'string') return null;
+    var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text.trim());
+    if (!m) return null;
+    var y = +m[1], mo = +m[2], d = +m[3];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    var dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return dt;
+  }
+  function ymd(dt) { return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()); }
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function formatDate(dt) {
+    return dt.getFullYear() + ' 年 ' + (dt.getMonth() + 1) + ' 月 ' + dt.getDate() + ' 日 · ' + WEEKDAYS[dt.getDay()];
+  }
+  function colorValue(id) {
+    for (var i = 0; i < COLORS.length; i++) { if (COLORS[i].id === id) return COLORS[i].value; }
+    return COLORS[0].value;
+  }
+
+  /* 一个纪念日「这一次」的目标时刻：不重复的固定为当天 00:00；
+     每年重复的取下一次（若今天就是那天，则取今天 00:00，界面上按“就是今天”处理）。 */
+  function targetOf(item, now) {
+    var base = parseYMD(item.date);
+    if (!base) return null;
+    if (!item.repeat) return base;
+    var t = new Date(now.getFullYear(), base.getMonth(), base.getDate());
+    if (sameDay(t, now)) return t;
+    if (t.getTime() < now.getTime()) t = new Date(now.getFullYear() + 1, base.getMonth(), base.getDate());
+    return t;
+  }
+
+  /* ── 状态与持久化 ──────────────────────────────────────── */
+  var state = { items: [], activeId: null };
+  var storageOk = true;
+
+  function normalize(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var date = typeof raw.date === 'string' ? raw.date.trim() : '';
+    if (!parseYMD(date)) return null;
+    var name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 40) : '';
+    if (!name) name = '未命名纪念日';
+    var color = COLORS[0].id;
+    for (var i = 0; i < COLORS.length; i++) { if (COLORS[i].id === raw.color) color = raw.color; }
+    var id = typeof raw.id === 'string' && raw.id ? raw.id : uid();
+    return { id: id, name: name, date: ymd(parseYMD(date)), color: color, repeat: !!raw.repeat };
+  }
+
+  function seed() {
+    state.items = DEFAULT_ITEMS.map(function (raw) { return normalize(raw); });
+    state.activeId = state.items.length ? state.items[0].id : null;
+  }
+
+  function save() {
+    if (!storageOk) return;
+    try {
+      window.localStorage.setItem(STORE_KEY, JSON.stringify({ v: 1, activeId: state.activeId, items: state.items }));
+    } catch (e) {
+      storageOk = false;
+      markStorageBroken();
+    }
+  }
+
+  function load() {
+    var raw = null;
+    try { raw = window.localStorage.getItem(STORE_KEY); }
+    catch (e) { storageOk = false; }
+
+    if (!storageOk) { seed(); return; }
+    if (raw == null) { seed(); save(); return; }
+
+    var parsed = null;
+    try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+
+    if (!parsed || !Array.isArray(parsed.items)) {
+      try { window.localStorage.setItem(STORE_KEY + '.broken', raw); } catch (e2) { /* 忽略 */ }
+      seed();
+      save();
+      return;
+    }
+    state.items = parsed.items.map(normalize).filter(Boolean);
+    state.activeId = null;
+    if (typeof parsed.activeId === 'string') {
+      for (var i = 0; i < state.items.length; i++) {
+        if (state.items[i].id === parsed.activeId) { state.activeId = parsed.activeId; break; }
+      }
+    }
+  }
+
+  function markStorageBroken() {
+    var foot = $('foot');
+    if (foot) { foot.className = 'foot warn'; }
+    setText($('storageNote'), '这个浏览器不允许本地存储（无痕模式常见），新增的纪念日关掉页面就会丢。换普通窗口打开即可。');
+  }
+
+  /* ── 排序与分组 ────────────────────────────────────────── */
+  function entriesFor(now) {
+    var today = [], future = [], past = [];
+    state.items.forEach(function (item) {
+      var target = targetOf(item, now);
+      var entry = { item: item, target: target, diff: target ? target.getTime() - now.getTime() : 0 };
+      if (!target || (!sameDay(target, now) && entry.diff <= 0)) past.push(entry);
+      else if (sameDay(target, now)) today.push(entry);
+      else future.push(entry);
+    });
+    today.sort(function (a, b) { return a.target - b.target; });
+    future.sort(function (a, b) { return a.target - b.target; });
+    past.sort(function (a, b) { return b.target - a.target; });
+    return { today: today, future: future, past: past, ordered: today.concat(future, past) };
+  }
+
+  function findEntry(entries, id) {
+    for (var i = 0; i < entries.ordered.length; i++) {
+      if (entries.ordered[i].item.id === id) return entries.ordered[i];
+    }
+    return null;
+  }
+
+  /* ── 主卡渲染 ──────────────────────────────────────────── */
+  var accentNow = '';
+  function applyAccent(colorId) {
+    var value = colorValue(colorId);
+    if (value === accentNow) return;
+    accentNow = value;
+    document.documentElement.style.setProperty('--accent', value);
+  }
+
+  function setNum(node, value, pad) {
+    var text = pad ? (value < 10 ? '0' + value : String(value)) : String(value);
+    if (node.textContent === text) return;
+    node.textContent = text;
+    if (!REDUCED && node.id === 'uS' && node.animate) {
+      node.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' });
+    }
+  }
+
+  function renderHero(entry, now) {
+    var badge = $('heroBadge'), name = $('heroName'), date = $('heroDate'), note = $('heroNote');
+    var d = $('uD'), h = $('uH'), mi = $('uM'), s = $('uS');
+    var sr = $('heroSr');
+
+    if (!entry) {
+      applyAccent(COLORS[0].id);
+      setText(badge, '还没有纪念日');
+      setText(name, '添加一个日子，开始倒计时');
+      setText(date, '加上名称和日期就可以了');
+      d.textContent = '0'; h.textContent = '00'; mi.textContent = '00'; s.textContent = '00';
+      setText(note, '这里会出现天数、小时、分钟和秒');
+      setText(sr, '还没有纪念日');
+      var barEmpty = $('dayBar');
+      if (barEmpty) barEmpty.style.width = dayProgress(now) + '%';
+      setText($('heroPct'), '今日 ' + Math.round(dayProgress(now)) + '%');
+      return;
+    }
+
+    var item = entry.item;
+    applyAccent(item.color);
+    setText(name, item.name);
+    setText(date, formatDate(parseYMD(item.date)) + (item.repeat ? ' · 每年' : ''));
+
+    var diff = entry.diff;
+    var past = diff <= 0;
+    var today = sameDay(entry.target, now);
+    var ms = Math.abs(diff);
+    var b = breakdown(ms);
+    var days = b.days, hours = b.hours, mins = b.mins, secs = b.secs;
+
+    if (today) setText(badge, '就是今天');
+    else if (past) setText(badge, '已经过去');
+    else setText(badge, '倒计时中');
+
+    setNum(d, days, false);
+    setNum(h, hours, true);
+    setNum(mi, mins, true);
+    setNum(s, secs, true);
+
+    var line;
+    if (today) line = '今天就是这一天，已经过去 ' + hours + ' 小时 ' + mins + ' 分钟';
+    else if (past) line = '已经过去 ' + humanText(b);
+    else line = '还有 ' + humanText(b);
+    setText(note, line);
+
+    setText(sr, today ? ('今天就是「' + item.name + '」')
+      : (past ? ('「' + item.name + '」' + line) : (line + ' 到「' + item.name + '」')));
+
+    var pct = dayProgress(now);
+    var bar = $('dayBar');
+    if (bar) bar.style.width = pct.toFixed(2) + '%';
+    setText($('heroPct'), '今日 ' + Math.round(pct) + '%');
+  }
+
+  function dayProgress(now) {
+    return ((now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400) * 100;
+  }
+
+  /* 唯一的“天/时/分/秒”口径：所有文字都从它派生，避免主卡与列表不一致 */
+  function breakdown(ms) {
+    var total = Math.floor(ms / 1000);
+    return {
+      days: Math.floor(total / 86400),
+      hours: Math.floor((total % 86400) / 3600),
+      mins: Math.floor((total % 3600) / 60),
+      secs: total % 60
+    };
+  }
+  function humanText(b) {
+    if (b.days > 0) return b.days + ' 天 ' + b.hours + ' 小时';
+    if (b.hours > 0) return b.hours + ' 小时 ' + b.mins + ' 分';
+    return b.mins + ' 分 ' + b.secs + ' 秒';
+  }
+
+  function miniText(entry, now) {
+    if (sameDay(entry.target, now)) return '就是今天';
+    var b = breakdown(Math.abs(entry.diff));
+    if (entry.diff > 0) return b.days > 0 ? '还有 ' + b.days + ' 天' : '还有 ' + b.hours + ' 小时';
+    return b.days > 0 ? '已过去 ' + b.days + ' 天' : b.hours + ' 小时前';
+  }
+
+  /* ── DOM 引用 ──────────────────────────────────────────── */
+  var listEl, countEl, swatchesEl, formEl, nameInput, dateInput, repeatInput, errEl, toastEl, heroEl;
+  var nodes = {};              /* itemId -> { root, mini } */
+
+  /* ── 列表渲染 ──────────────────────────────────────────── */
+  function renderList(entries) {
+    var now = new Date();
+    listEl.textContent = '';
+    nodes = {};
+    setText(countEl, String(state.items.length));
+
+    if (!state.items.length) {
+      listEl.appendChild(el('div', 'empty', '还没有纪念日，上面添加一个试试。'));
+      return;
+    }
+
+    entries.ordered.forEach(function (entry) {
+      var item = entry.item;
+      var base = parseYMD(item.date);
+      var root = el('div', 'item');
+      root.setAttribute('role', 'button');
+      root.setAttribute('tabindex', '0');
+      root.setAttribute('data-id', item.id);
+      root.style.setProperty('--dot', colorValue(item.color));
+      root.title = '点击让它成为主倒计时';
+      if (item.id === state.activeId) root.setAttribute('aria-current', 'true');
+
+      root.appendChild(el('span', 'item-dot'));
+
+      var main = el('span', 'item-main');
+      main.appendChild(el('span', 'item-name', item.name));
+      var meta = el('span', 'item-date');
+      meta.appendChild(el('span', null, item.date.replace(/-/g, '.')));
+      if (item.repeat) meta.appendChild(el('span', 'tag', '每年'));
+      meta.appendChild(el('span', null, WEEKDAYS[base.getDay()]));
+      main.appendChild(meta);
+      root.appendChild(main);
+
+      var mini = el('span', 'item-left', miniText(entry, now));
+      root.appendChild(mini);
+
+      var del = el('button', 'item-del', '✕');
+      del.type = 'button';
+      del.setAttribute('aria-label', '删除「' + item.name + '」');
+      root.appendChild(del);
+
+      nodes[item.id] = { root: root, mini: mini };
+      listEl.appendChild(root);
+    });
+  }
+
+  /* ── 交互行为 ──────────────────────────────────────────── */
+  function ensureActive(entries) {
+    if (state.activeId && findEntry(entries, state.activeId)) return false;
+    var next = entries.ordered.length ? entries.ordered[0].item.id : null;
+    if (state.activeId === next) return false;
+    state.activeId = next;
+    return true;
+  }
+
+  function update(presetNow, presetEntries) {
+    var now = presetNow || new Date();
+    var entries = presetEntries || entriesFor(now);
+    setText($('today'), now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) + ' ' + WEEKDAYS[now.getDay()]);
+
+    var active = state.activeId ? findEntry(entries, state.activeId) : null;
+    if (!active && entries.ordered.length) {
+      state.activeId = entries.ordered[0].item.id;
+      active = entries.ordered[0];
+      save();
+    }
+    renderHero(active, now);
+
+    entries.ordered.forEach(function (entry) {
+      var ref = nodes[entry.item.id];
+      if (ref) setText(ref.mini, miniText(entry, now));
+    });
+  }
+
+  function pop(node) {
+    if (REDUCED || !node || !node.animate) return;
+    node.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.025)' }, { transform: 'scale(1)' }],
+      { duration: 320, easing: 'cubic-bezier(0.34, 1.3, 0.64, 1)' });
+  }
+
+  function selectItem(id) {
+    if (!id || id === state.activeId) { update(); return; }
+    state.activeId = id;
+    save();
+    Object.keys(nodes).forEach(function (key) {
+      if (key === id) nodes[key].root.setAttribute('aria-current', 'true');
+      else nodes[key].root.removeAttribute('aria-current');
+    });
+    pop(nodes[id] ? nodes[id].root : null);
+    update();
+    if (window.innerWidth < 920) scrollHero();
+  }
+
+  function scrollHero() {
+    if (!heroEl || typeof heroEl.scrollIntoView !== 'function') return;
+    try { heroEl.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }
+    catch (e) { try { heroEl.scrollIntoView(); } catch (e2) { /* 环境不支持，忽略 */ } }
+  }
+
+  function removeItem(id) {
+    var index = -1;
+    for (var i = 0; i < state.items.length; i++) {
+      if (state.items[i].id === id) { index = i; break; }
+    }
+    if (index < 0) return;
+
+    var removed = state.items[index];
+    var prevActive = state.activeId;
+    state.items.splice(index, 1);
+    if (state.activeId === id) state.activeId = null;
+
+    var entries = entriesFor(new Date());
+    ensureActive(entries);
+    save();
+    renderList(entries);
+    update(null, entries);
+    focusListIndex(index);
+
+    showToast('已删除「' + removed.name + '」', '撤销', function () {
+      state.items.splice(Math.min(index, state.items.length), 0, removed);
+      state.activeId = prevActive;
+      var after = entriesFor(new Date());
+      ensureActive(after);
+      save();
+      renderList(after);
+      update(null, after);
+      if (nodes[removed.id]) { pop(nodes[removed.id].root); nodes[removed.id].root.focus(); }
+    });
+  }
+
+  function focusListIndex(index) {
+    var items = listEl.querySelectorAll('.item');
+    if (items.length) {
+      var target = items[Math.min(index, items.length - 1)];
+      if (target) target.focus();
+    } else if (nameInput) {
+      nameInput.focus();
+    }
+  }
+
+  function addItem(data) {
+    var duplicated = state.items.some(function (it) {
+      return it.name === data.name && it.date === data.date && it.repeat === data.repeat;
+    });
+    if (duplicated) { showToast('「' + data.name + '」已经在列表里了'); return false; }
+
+    var item = normalize({ name: data.name, date: data.date, color: data.color, repeat: data.repeat });
+    if (!item) { showErr('日期不合法，请重新选一个'); return false; }
+
+    state.items.push(item);
+    state.activeId = item.id;
+    save();
+
+    var entries = entriesFor(new Date());
+    renderList(entries);
+    update(null, entries);
+    pop(nodes[item.id] ? nodes[item.id].root : null);
+    showToast('已添加「' + item.name + '」');
+    if (window.innerWidth < 920) scrollHero();
+    return true;
+  }
+
+  /* ── 提示条与表单校验 ──────────────────────────────────── */
+  var toastTimer = null;
+
+  function showToast(message, actionLabel, action) {
+    if (!toastEl) return;
+    toastEl.textContent = '';
+    toastEl.appendChild(el('span', null, message));
+    if (actionLabel && action) {
+      var btn = el('button', 'toast-action', actionLabel);
+      btn.type = 'button';
+      btn.addEventListener('click', function () { hideToast(); action(); });
+      toastEl.appendChild(btn);
+    }
+    toastEl.hidden = false;
+    if (toastEl.animate && !REDUCED) toastEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 });
+    requestAnimationFrame(function () { toastEl.classList.add('show'); });
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(hideToast, actionLabel ? 7000 : 2600);
+  }
+
+  function hideToast() {
+    if (!toastEl) return;
+    toastEl.classList.remove('show');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () { toastEl.hidden = true; }, 260);
+  }
+
+  function showErr(text) {
+    if (!errEl) return;
+    errEl.textContent = text;
+    errEl.hidden = false;
+  }
+  function hideErr() { if (errEl) { errEl.hidden = true; errEl.textContent = ''; } }
+
+  /* ── 初始化 ────────────────────────────────────────────── */
+  function buildSwatches() {
+    swatchesEl.textContent = '';
+    COLORS.forEach(function (color, index) {
+      var input = el('input', 'swatch-input');
+      input.type = 'radio';
+      input.name = 'color';
+      input.value = color.id;
+      input.id = 'color-' + color.id;
+      input.setAttribute('aria-label', color.label);
+      if (index === 0) input.checked = true;
+
+      var swatch = el('span', 'swatch');
+      swatch.style.setProperty('--c', color.value);
+
+      var wrap = el('label');
+      wrap.setAttribute('for', input.id);
+      wrap.setAttribute('title', color.label);
+      wrap.appendChild(input);
+      wrap.appendChild(swatch);
+      swatchesEl.appendChild(wrap);
+
+      input.addEventListener('change', function () { applyAccent(color.id); });
+    });
+  }
+
+  function checkedColor() {
+    var input = swatchesEl.querySelector('input[name="color"]:checked');
+    return input ? input.value : COLORS[0].id;
+  }
+
+  function bindEvents() {
+    listEl.addEventListener('click', function (event) {
+      var node = event.target;
+      if (!node || !node.closest) return;
+      var root = node.closest('.item');
+      if (!root) return;
+      if (node.closest('.item-del')) { removeItem(root.getAttribute('data-id')); return; }
+      selectItem(root.getAttribute('data-id'));
+    });
+
+    listEl.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+      var node = event.target;
+      if (!node || !node.closest || node.closest('.item-del')) return;
+      var root = node.closest('.item');
+      if (!root) return;
+      event.preventDefault();
+      selectItem(root.getAttribute('data-id'));
+    });
+
+    formEl.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var name = nameInput.value.trim();
+      var date = dateInput.value.trim();
+      if (!name) { showErr('给这个日子起个名字吧'); nameInput.focus(); return; }
+      if (!parseYMD(date)) { showErr('请选择一个有效的日期'); dateInput.focus(); return; }
+      hideErr();
+      var ok = addItem({ name: name, date: date, color: checkedColor(), repeat: repeatInput.checked });
+      if (ok) {
+        nameInput.value = '';
+        dateInput.value = '';
+        repeatInput.checked = false;
+        nameInput.focus();
+      }
+    });
+
+    nameInput.addEventListener('input', hideErr);
+    dateInput.addEventListener('input', hideErr);
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) update();
+    });
+  }
+
+  function init() {
+    listEl = $('list');
+    countEl = $('count');
+    swatchesEl = $('swatches');
+    formEl = $('addForm');
+    nameInput = $('fName');
+    dateInput = $('fDate');
+    repeatInput = $('fRepeat');
+    errEl = $('formErr');
+    toastEl = $('toast');
+    heroEl = document.querySelector('.hero');
+    if (!listEl || !formEl || !heroEl) return;
+
+    buildSwatches();
+    load();
+    if (!storageOk) markStorageBroken();
+
+    var now = new Date();
+    var entries = entriesFor(now);
+    if (ensureActive(entries)) save();
+    renderList(entries);
+    update(now, entries);
+    bindEvents();
+    loop();
+  }
+
+  var loopTimer = null;
+  function loop() {
+    window.clearTimeout(loopTimer);
+    update();
+    loopTimer = window.setTimeout(loop, 1000 - (Date.now() % 1000) + 12);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>
