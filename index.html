@@ -115,8 +115,12 @@ body {
 }
 @media (min-width: 920px) {
   .grid { grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr); align-items: start; }
-  .hero { position: sticky; top: 26px; }
 }
+/* 左侧两卡一起吸顶；只在视口够高时才吸，否则会比屏幕还长 */
+@media (min-width: 920px) and (min-height: 880px) {
+  .left { position: sticky; top: 26px; }
+}
+.left,
 .side { display: flex; flex-direction: column; gap: clamp(16px, 2.4vw, 26px); min-width: 0; }
 
 /* ── 主卡：倒计时 ───────────────────────────────────────── */
@@ -240,6 +244,103 @@ body {
   color: var(--muted);
 }
 .foot-row .pct { font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+
+/* ── 风景卡 ─────────────────────────────────────────────── */
+.scene {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012));
+  box-shadow:
+    0 26px 60px -34px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.scene[hidden] { display: none; }
+.scene-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: oklch(0.17 0.015 275);
+}
+.scene-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.035);
+  transition: opacity 640ms ease-out, transform 1100ms ease-out;
+}
+.scene-media img.ready { opacity: 1; transform: scale(1); }
+.scene-media::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 62%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(8, 8, 12, 0.2) 45%, rgba(8, 8, 12, 0.86));
+}
+.scene-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.022) 32%, rgba(255, 255, 255, 0.075) 50%, rgba(255, 255, 255, 0.022) 68%);
+  background-size: 220% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+.scene-media:not(.pending) .scene-skeleton { display: none; }
+@keyframes shimmer {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+.scene-cap {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 15px;
+}
+.scene-text { min-width: 0; }
+.scene-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scene-credit {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.66);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scene-swap {
+  flex: none;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(18, 18, 24, 0.55);
+  backdrop-filter: blur(10px);
+  transition: transform 120ms ease-out, background 160ms;
+}
+.scene-swap:hover { background: rgba(18, 18, 24, 0.82); }
+.scene-swap:active { transform: scale(0.96); }
+.scene-swap:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent); }
 
 /* ── 面板与表单 ─────────────────────────────────────────── */
 .panel {
@@ -587,27 +688,44 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   </header>
 
   <main class="grid">
-    <section class="hero" aria-labelledby="heroName">
-      <p class="badge" id="heroBadge">最近的一个</p>
-      <h2 class="hero-name" id="heroName">加载中…</h2>
-      <p class="hero-date" id="heroDate">—</p>
+    <div class="left">
+      <section class="hero" aria-labelledby="heroName">
+        <p class="badge" id="heroBadge">最近的一个</p>
+        <h2 class="hero-name" id="heroName">加载中…</h2>
+        <p class="hero-date" id="heroDate">—</p>
 
-      <div class="units" id="units" aria-hidden="true">
-        <div class="unit"><span class="num" id="uD">0</span><span class="lbl">天</span></div>
-        <div class="unit"><span class="num" id="uH">00</span><span class="lbl">时</span></div>
-        <div class="unit"><span class="num" id="uM">00</span><span class="lbl">分</span></div>
-        <div class="unit"><span class="num" id="uS">00</span><span class="lbl">秒</span></div>
-      </div>
-      <p class="sr-only" id="heroSr">距离目标还有 0 天</p>
-
-      <div class="hero-foot">
-        <div class="bar-track"><div class="bar" id="dayBar"></div></div>
-        <div class="foot-row">
-          <span id="heroNote">—</span>
-          <span class="pct" id="heroPct">今日 0%</span>
+        <div class="units" id="units" aria-hidden="true">
+          <div class="unit"><span class="num" id="uD">0</span><span class="lbl">天</span></div>
+          <div class="unit"><span class="num" id="uH">00</span><span class="lbl">时</span></div>
+          <div class="unit"><span class="num" id="uM">00</span><span class="lbl">分</span></div>
+          <div class="unit"><span class="num" id="uS">00</span><span class="lbl">秒</span></div>
         </div>
-      </div>
-    </section>
+        <p class="sr-only" id="heroSr">距离目标还有 0 天</p>
+
+        <div class="hero-foot">
+          <div class="bar-track"><div class="bar" id="dayBar"></div></div>
+          <div class="foot-row">
+            <span id="heroNote">—</span>
+            <span class="pct" id="heroPct">今日 0%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 随机风景：同一个纪念日固定一张，不同纪念日不一样 -->
+      <section class="scene" id="scene" aria-label="这一天的风景" hidden>
+        <div class="scene-media pending" id="sceneMedia">
+          <img id="sceneImg" alt="" decoding="async" referrerpolicy="no-referrer">
+          <div class="scene-skeleton" aria-hidden="true"></div>
+          <div class="scene-cap">
+            <span class="scene-text">
+              <span class="scene-name" id="sceneName">—</span>
+              <span class="scene-credit" id="sceneCredit">—</span>
+            </span>
+            <button class="scene-swap" id="sceneSwap" type="button">换一张</button>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <div class="side">
       <section class="panel" aria-labelledby="addTitle">
@@ -623,9 +741,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
               <input id="fDate" name="date" type="date">
             </div>
             <div class="field">
-              <span class="label-plain" id="repLabel">重复</span>
-              <label class="check"><input type="checkbox" id="fRepeat" aria-describedby="repLabel"><span>每年重复</span></label>
+              <label for="fTime">时间</label>
+              <input id="fTime" name="time" type="time" value="00:00" step="60">
             </div>
+          </div>
+          <div class="field">
+            <span class="label-plain" id="repLabel">重复</span>
+            <label class="check"><input type="checkbox" id="fRepeat" aria-describedby="repLabel"><span>每年重复</span></label>
           </div>
           <div class="field">
             <span class="label-plain" id="colorLabel">主题色</span>
@@ -666,9 +788,46 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     { id: 'rose',   label: '玫瑰', value: 'oklch(0.74 0.17 12)' }
   ];
   var DEFAULT_ITEMS = [
-    { name: '2027 年元旦', date: '2027-01-01', color: 'violet', repeat: false }
+    { name: '2027 年元旦', date: '2027-01-01', time: '00:00', color: 'violet', repeat: false }
   ];
   var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  /* ── 风景图清单 ─────────────────────────────────────────
+     30 张真实风景照，来自 Lorem Picsum（图源 Unsplash，免费使用，作者见 by）。
+     已逐张看过缩略图、只留风景题材；每个纪念日按种子固定取一张。 */
+  var SCENES = [
+    { id: 10, by: 'Paul Jarvis' },
+    { id: 11, by: 'Paul Jarvis' },
+    { id: 12, by: 'Paul Jarvis' },
+    { id: 13, by: 'Paul Jarvis' },
+    { id: 15, by: 'Paul Jarvis' },
+    { id: 16, by: 'Paul Jarvis' },
+    { id: 17, by: 'Paul Jarvis' },
+    { id: 28, by: 'Jerry Adney' },
+    { id: 29, by: 'Go Wild' },
+    { id: 33, by: 'Alejandro Escamilla' },
+    { id: 37, by: 'Austin Neill' },
+    { id: 46, by: 'Jeffrey Kam' },
+    { id: 47, by: 'Christopher Sardegna' },
+    { id: 51, by: 'Ireneuilia' },
+    { id: 54, by: 'Nicholas Swanson' },
+    { id: 58, by: 'Tony Naccarato' },
+    { id: 59, by: 'Art Wave' },
+    { id: 62, by: 'Daniel Genser' },
+    { id: 66, by: 'Nicholas Swanson' },
+    { id: 67, by: 'Rula Sibai' },
+    { id: 69, by: 'Alexander Shustov' },
+    { id: 70, by: 'Dorothy Lin' },
+    { id: 71, by: 'Jon Eckert' },
+    { id: 79, by: 'Dorothy Lin' },
+    { id: 81, by: 'Sander Weeteling' },
+    { id: 93, by: 'Caroline Sada' },
+    { id: 94, by: 'Jean Kleisz' },
+    { id: 95, by: 'Kundan Ramisetti' },
+    { id: 98, by: 'Laurice Solomon' },
+    { id: 100, by: 'Tina Rataj' }
+  ];
+  var SCENE_TIMEOUT = 10000;
 
   /* ── 小工具 ───────────────────────────────────────────── */
   function $(id) { return document.getElementById(id); }
@@ -695,26 +854,151 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     return dt;
   }
   function ymd(dt) { return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()); }
+  function parseHM(text) {
+    if (typeof text !== 'string') return null;
+    var m = /^(\d{1,2}):(\d{1,2})$/.exec(text.trim());
+    if (!m) return null;
+    var h = +m[1], mi = +m[2];
+    if (h > 23 || mi > 59) return null;
+    return { h: h, m: mi };
+  }
+  function hhmm(h, m) { return pad2(h) + ':' + pad2(m); }
+  function timeOf(item) {
+    var hm = parseHM(item.time);
+    return hm || { h: 0, m: 0 };
+  }
+  /* 纪念日所在的那一刻（日期 + 时间，精确到分） */
+  function momentOf(item) {
+    var base = parseYMD(item.date);
+    if (!base) return null;
+    var hm = timeOf(item);
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hm.h, hm.m);
+  }
   function sameDay(a, b) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
-  function formatDate(dt) {
-    return dt.getFullYear() + ' 年 ' + (dt.getMonth() + 1) + ' 月 ' + dt.getDate() + ' 日 · ' + WEEKDAYS[dt.getDay()];
+  function formatMoment(dt) {
+    return dt.getFullYear() + ' 年 ' + (dt.getMonth() + 1) + ' 月 ' + dt.getDate() + ' 日 ' +
+      pad2(dt.getHours()) + ':' + pad2(dt.getMinutes()) + ' · ' + WEEKDAYS[dt.getDay()];
   }
   function colorValue(id) {
     for (var i = 0; i < COLORS.length; i++) { if (COLORS[i].id === id) return COLORS[i].value; }
     return COLORS[0].value;
   }
 
-  /* 一个纪念日「这一次」的目标时刻：不重复的固定为当天 00:00；
-     每年重复的取下一次（若今天就是那天，则取今天 00:00，界面上按“就是今天”处理）。 */
+  /* ── 风景：按纪念日定种 ──────────────────────────────── */
+  function hashSeed(text) {
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h >>> 0;
+  }
+  /* 同一个纪念日永远同一张风景；「换一张」只加一个偏移量 */
+  function sceneIndexFor(item) {
+    var base = hashSeed(item.name + '|' + item.date + '|' + item.time);
+    var n = SCENES.length;
+    return (base + (((item.scene || 0) % n) + n) % n) % n;
+  }
+  function scenePix(id, w, h) { return 'https://picsum.photos/id/' + id + '/' + w + '/' + h; }
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* 断网 / 图源不可用时的兜底：用同一颗种子画一张风景，永远能看 */
+  var SKIES = [
+    { top: '#1b2440', mid: '#6b5a7a', low: '#e8a17a', sun: '#ffd9a8', night: false,
+      ridge: ['#3b3b5c', '#2a2b46', '#1d2036', '#121426'] },
+    { top: '#20344f', mid: '#5d86a8', low: '#d8e6ea', sun: '#fff4d6', night: false,
+      ridge: ['#4a6a74', '#3d5f6b', '#2a4750', '#182b32'] },
+    { top: '#26183a', mid: '#8a3f5c', low: '#f09a5b', sun: '#ffcf86', night: false,
+      ridge: ['#54295a', '#43204a', '#2d1634', '#1a0d21'] },
+    { top: '#070a18', mid: '#131c3a', low: '#2b3a5e', sun: '#e6ecff', night: true,
+      ridge: ['#243055', '#1b2440', '#131a2e', '#080c16'] }
+  ];
+
+  function sceneSvg(seed) {
+    var rnd = mulberry32(seed ^ 0x9e3779b9);
+    var sky = SKIES[Math.floor(rnd() * SKIES.length) % SKIES.length];
+    var W = 800, H = 500, water = 356;
+    var sunX = Math.round(90 + rnd() * 620);
+    var sunY = Math.round(70 + rnd() * 150);
+    var sunR = Math.round(24 + rnd() * 20);
+    var out = [];
+
+    out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">');
+    out.push('<defs>' +
+      '<linearGradient id="k" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + sky.top + '"/>' +
+      '<stop offset="0.58" stop-color="' + sky.mid + '"/>' +
+      '<stop offset="1" stop-color="' + sky.low + '"/></linearGradient>' +
+      '<linearGradient id="w" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + sky.ridge[0] + '"/>' +
+      '<stop offset="0.35" stop-color="' + sky.ridge[2] + '"/>' +
+      '<stop offset="1" stop-color="' + sky.ridge[3] + '"/></linearGradient>' +
+      '<radialGradient id="g"><stop offset="0" stop-color="' + sky.sun + '" stop-opacity="0.75"/>' +
+      '<stop offset="1" stop-color="' + sky.sun + '" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="h" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + sky.low + '" stop-opacity="0"/>' +
+      '<stop offset="1" stop-color="' + sky.low + '" stop-opacity="0.3"/></linearGradient>' +
+      '</defs>');
+    out.push('<rect width="800" height="' + water + '" fill="url(#k)"/>');
+
+    if (sky.night) {
+      for (var i = 0; i < 80; i++) {
+        out.push('<circle cx="' + (rnd() * W).toFixed(1) + '" cy="' + (rnd() * (water - 40)).toFixed(1) +
+          '" r="' + (0.6 + rnd() * 1.2).toFixed(2) + '" fill="#ffffff" opacity="' + (0.25 + rnd() * 0.6).toFixed(2) + '"/>');
+      }
+    }
+    out.push('<circle cx="' + sunX + '" cy="' + sunY + '" r="' + (sunR * 5) + '" fill="url(#g)"/>');
+    out.push('<circle cx="' + sunX + '" cy="' + sunY + '" r="' + sunR + '" fill="' + sky.sun + '"/>');
+
+    var amps = [126, 92, 62, 36];
+    for (var L = 0; L < 4; L++) {
+      var baseY = 300 + L * 16;
+      var steps = 9 + Math.floor(rnd() * 7);
+      var pts = ['0,' + H];
+      for (var s = 0; s <= steps; s++) {
+        var x = (W / steps) * s;
+        var y = baseY - Math.pow(rnd(), 1.4) * amps[L];
+        pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+      }
+      pts.push(W + ',' + H);
+      out.push('<polygon points="' + pts.join(' ') + '" fill="' + sky.ridge[L] + '"/>');
+    }
+
+    out.push('<rect y="' + water + '" width="800" height="' + (H - water) + '" fill="url(#w)"/>');
+    out.push('<rect y="' + (water - 46) + '" width="800" height="46" fill="url(#h)"/>');
+    out.push('<ellipse cx="' + sunX + '" cy="' + (water + 6) + '" rx="' + (sunR * 2.6) + '" ry="5" fill="' + sky.sun + '" opacity="0.4"/>');
+    for (var k = 0; k < 9; k++) {
+      var ly = water + 14 + rnd() * (H - water - 22);
+      var lw = 50 + rnd() * 300;
+      out.push('<rect x="' + (rnd() * (W - lw)).toFixed(1) + '" y="' + ly.toFixed(1) + '" width="' + lw.toFixed(1) +
+        '" height="1.6" rx="0.8" fill="' + sky.sun + '" opacity="' + (0.08 + rnd() * 0.16).toFixed(2) + '"/>');
+    }
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  /* 一个纪念日「这一次」的目标时刻：日期 + 时间（不重复的固定为那一刻；
+     每年重复的取下一次；若今天就是那天，则取今天那一刻，界面上按“就是今天”处理）。 */
   function targetOf(item, now) {
-    var base = parseYMD(item.date);
+    var base = momentOf(item);
     if (!base) return null;
     if (!item.repeat) return base;
-    var t = new Date(now.getFullYear(), base.getMonth(), base.getDate());
+    var hm = timeOf(item);
+    var t = new Date(now.getFullYear(), base.getMonth(), base.getDate(), hm.h, hm.m);
     if (sameDay(t, now)) return t;
-    if (t.getTime() < now.getTime()) t = new Date(now.getFullYear() + 1, base.getMonth(), base.getDate());
+    if (t.getTime() < now.getTime()) t = new Date(now.getFullYear() + 1, base.getMonth(), base.getDate(), hm.h, hm.m);
     return t;
   }
 
@@ -731,7 +1015,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     var color = COLORS[0].id;
     for (var i = 0; i < COLORS.length; i++) { if (COLORS[i].id === raw.color) color = raw.color; }
     var id = typeof raw.id === 'string' && raw.id ? raw.id : uid();
-    return { id: id, name: name, date: ymd(parseYMD(date)), color: color, repeat: !!raw.repeat };
+    var hm = parseHM(raw.time) || { h: 0, m: 0 };
+    var scene = Number(raw.scene);
+    scene = isFinite(scene) ? (((Math.floor(scene) % SCENES.length) + SCENES.length) % SCENES.length) : 0;
+    return { id: id, name: name, date: ymd(parseYMD(date)), time: hhmm(hm.h, hm.m), color: color, repeat: !!raw.repeat, scene: scene };
   }
 
   function seed() {
@@ -831,7 +1118,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       applyAccent(COLORS[0].id);
       setText(badge, '还没有纪念日');
       setText(name, '添加一个日子，开始倒计时');
-      setText(date, '加上名称和日期就可以了');
+      setText(date, '填上名称和日期时间就可以了');
       d.textContent = '0'; h.textContent = '00'; mi.textContent = '00'; s.textContent = '00';
       setText(note, '这里会出现天数、小时、分钟和秒');
       setText(sr, '还没有纪念日');
@@ -844,7 +1131,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     var item = entry.item;
     applyAccent(item.color);
     setText(name, item.name);
-    setText(date, formatDate(parseYMD(item.date)) + (item.repeat ? ' · 每年' : ''));
+    setText(date, formatMoment(momentOf(item)) + (item.repeat ? ' · 每年' : ''));
 
     var diff = entry.diff;
     var past = diff <= 0;
@@ -905,7 +1192,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 
   /* ── DOM 引用 ──────────────────────────────────────────── */
-  var listEl, countEl, swatchesEl, formEl, nameInput, dateInput, repeatInput, errEl, toastEl, heroEl;
+  var listEl, countEl, swatchesEl, formEl, nameInput, dateInput, timeInput, repeatInput, errEl, toastEl, heroEl;
+  var sceneEl, sceneMedia, sceneImg, sceneNameEl, sceneCreditEl, sceneSwapBtn;
+  var sceneTimer = null, sceneKeyNow = '';
   var nodes = {};              /* itemId -> { root, mini } */
 
   /* ── 列表渲染 ──────────────────────────────────────────── */
@@ -936,7 +1225,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       var main = el('span', 'item-main');
       main.appendChild(el('span', 'item-name', item.name));
       var meta = el('span', 'item-date');
-      meta.appendChild(el('span', null, item.date.replace(/-/g, '.')));
+      meta.appendChild(el('span', null, item.date.replace(/-/g, '.') + ' ' + item.time));
       if (item.repeat) meta.appendChild(el('span', 'tag', '每年'));
       meta.appendChild(el('span', null, WEEKDAYS[base.getDay()]));
       main.appendChild(meta);
@@ -976,6 +1265,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       save();
     }
     renderHero(active, now);
+    maybeRenderScene(active ? active.item : null);
 
     entries.ordered.forEach(function (entry) {
       var ref = nodes[entry.item.id];
@@ -987,6 +1277,70 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (REDUCED || !node || !node.animate) return;
     node.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.025)' }, { transform: 'scale(1)' }],
       { duration: 320, easing: 'cubic-bezier(0.34, 1.3, 0.64, 1)' });
+  }
+
+  /* ── 风景卡渲染 ────────────────────────────────────────── */
+  function maybeRenderScene(item) {
+    if (!sceneEl || !sceneImg) return;
+    if (!item) {
+      if (!sceneEl.hidden) { sceneEl.hidden = true; sceneKeyNow = ''; }
+      return;
+    }
+
+    var index = sceneIndexFor(item);
+    var key = item.id + '|' + index;
+    if (sceneEl.hidden) sceneEl.hidden = false;
+    if (key === sceneKeyNow) return;
+    sceneKeyNow = key;
+
+    var scene = SCENES[index];
+    var seed = hashSeed(item.id + '|' + (item.scene || 0) + '|' + scene.id);
+    setText(sceneNameEl, '「' + item.name + '」的风景');
+    sceneImg.alt = '为「' + item.name + '」挑的一张风景照';
+    sceneImg.classList.remove('ready');
+    sceneMedia.classList.add('pending');
+    window.clearTimeout(sceneTimer);
+
+    sceneImg.onload = function () {
+      window.clearTimeout(sceneTimer);
+      sceneMedia.classList.remove('pending');
+      sceneImg.classList.add('ready');
+      setText(sceneCreditEl, '摄影 ' + scene.by + ' · Lorem Picsum');
+    };
+    sceneImg.onerror = function () { renderSceneFallback(item, seed); };
+
+    sceneImg.srcset = scenePix(scene.id, 800, 500) + ' 800w, ' + scenePix(scene.id, 1600, 1000) + ' 1600w';
+    sceneImg.sizes = '(min-width: 920px) 46vw, 92vw';
+    sceneImg.src = scenePix(scene.id, 800, 500);
+
+    /* 图源卡住（墙外/断网/限流）超过 10 秒，也切成画出来的风景 */
+    sceneTimer = window.setTimeout(function () {
+      if (sceneMedia.classList.contains('pending')) renderSceneFallback(item, seed);
+    }, SCENE_TIMEOUT);
+  }
+
+  function renderSceneFallback(item, seed) {
+    window.clearTimeout(sceneTimer);
+    sceneImg.onload = null;
+    sceneImg.onerror = null;
+    sceneImg.removeAttribute('srcset');
+    sceneImg.removeAttribute('sizes');
+    sceneImg.alt = '为「' + item.name + '」画的一张风景';
+    sceneImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sceneSvg(seed));
+    sceneImg.classList.add('ready');
+    sceneMedia.classList.remove('pending');
+    setText(sceneCreditEl, '画出来的风景 · 离线可用');
+  }
+
+  function swapScene() {
+    var entries = entriesFor(new Date());
+    var active = state.activeId ? findEntry(entries, state.activeId) : null;
+    if (!active) return;
+    active.item.scene = ((active.item.scene || 0) + 1) % SCENES.length;
+    save();
+    sceneKeyNow = '';
+    maybeRenderScene(active.item);
+    showToast('换了一张风景');
   }
 
   function selectItem(id) {
@@ -1051,11 +1405,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   function addItem(data) {
     var duplicated = state.items.some(function (it) {
-      return it.name === data.name && it.date === data.date && it.repeat === data.repeat;
+      return it.name === data.name && it.date === data.date && it.time === data.time && it.repeat === data.repeat;
     });
     if (duplicated) { showToast('「' + data.name + '」已经在列表里了'); return false; }
 
-    var item = normalize({ name: data.name, date: data.date, color: data.color, repeat: data.repeat });
+    var item = normalize({ name: data.name, date: data.date, time: data.time, color: data.color, repeat: data.repeat });
     if (!item) { showErr('日期不合法，请重新选一个'); return false; }
 
     state.items.push(item);
@@ -1163,10 +1517,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       if (!name) { showErr('给这个日子起个名字吧'); nameInput.focus(); return; }
       if (!parseYMD(date)) { showErr('请选择一个有效的日期'); dateInput.focus(); return; }
       hideErr();
-      var ok = addItem({ name: name, date: date, color: checkedColor(), repeat: repeatInput.checked });
+      var ok = addItem({
+        name: name,
+        date: date,
+        time: parseHM(timeInput.value) ? timeInput.value : '00:00',
+        color: checkedColor(),
+        repeat: repeatInput.checked
+      });
       if (ok) {
         nameInput.value = '';
         dateInput.value = '';
+        timeInput.value = '00:00';
         repeatInput.checked = false;
         nameInput.focus();
       }
@@ -1174,6 +1535,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
     nameInput.addEventListener('input', hideErr);
     dateInput.addEventListener('input', hideErr);
+    if (sceneSwapBtn) sceneSwapBtn.addEventListener('click', swapScene);
 
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) update();
@@ -1187,10 +1549,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     formEl = $('addForm');
     nameInput = $('fName');
     dateInput = $('fDate');
+    timeInput = $('fTime');
     repeatInput = $('fRepeat');
     errEl = $('formErr');
     toastEl = $('toast');
     heroEl = document.querySelector('.hero');
+    sceneEl = $('scene');
+    sceneMedia = $('sceneMedia');
+    sceneImg = $('sceneImg');
+    sceneNameEl = $('sceneName');
+    sceneCreditEl = $('sceneCredit');
+    sceneSwapBtn = $('sceneSwap');
     if (!listEl || !formEl || !heroEl) return;
 
     buildSwatches();

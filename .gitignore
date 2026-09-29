@@ -3,3 +3,4 @@ node_modules/
 .serverpid
 .verify-*.js
 deploy-github.mjs
+.scene-scan/
